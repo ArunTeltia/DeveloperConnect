@@ -148,6 +148,100 @@ router.delete('/',auth, async (req,res)=>{
 
     }
 }); 
+//@route put api/profile/education
+//@desc add profile education
+//@access pRIVATE
+
+router.put(
+    '/education',
+    [
+      auth,
+      [
+        check('school', 'School is required')
+          .not()
+          .isEmpty(),
+        check('degree', 'Degree is required')
+          .not()
+          .isEmpty(),
+        check('feildofstudy', 'Feild of Study is required')
+          .not()
+          .isEmpty(),  
+        check('from', 'From date is required')
+          .not()
+          .isEmpty()
+      ] 
+    ],
+    async (req, res) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+  
+      const {
+        school,
+        degree,
+        feildofstudy,
+        from,
+        to,
+        current,
+        description
+      } = req.body;
+  
+      const newEdu = {
+          //same as doing title:title 
+        school,
+        degree,
+        feildofstudy,
+        from, 
+        to,
+        current,
+        description
+      };
+  
+      try {
+        const profile = await Profile.findOne({ user: req.user.id });
+  
+        profile.education.unshift(newEdu);//pushing at start of the array ,new exp at start
+   
+        await profile.save();
+  
+        res.json(profile);
+      } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+      }
+    }
+  );
+
+//@route delete api/profile/education/:edu_id
+//@desc delete profile education 
+//@access Private
+router.delete('/experience/:edu_id',auth, async (req,res)=>{
+    try {
+         const profile = await Profile.findOne({ user: req.user.id });
+        
+        //Get remove index
+        const removeIndex =profile.experience.map(item =>item.id).indexOf(req.params.edu_id);
+        // 5 experience =>create loop=>make array of all experienceid=>then match that withthe id that is being send
+
+        profile.experience.splice(removeIndex,1);
+
+
+        await profile.save();
+        //if we dont use promise then there is a creation of a callback triangle;
+    
+    req.json(profile);
+    
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+
+        
+    }
+});
+
+
+
 //@route put api/profile/experience
 //@desc add profile experience 
 //@access pRIVATE
