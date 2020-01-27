@@ -17,7 +17,7 @@ router.post(
     check("name", "Name is required")
       .not()
       .isEmpty(),
-      //if we want that username is not empty we have to write this like check the username and then it must be not emmpty if empty if will show an error username not there
+    //if we want that username is not empty we have to write this like check the username and then it must be not emmpty if empty if will show an error username not there
     check("email", "Please include a valid email").isEmail(),
     check(
       "password",
@@ -28,7 +28,7 @@ router.post(
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
-      //this is the way by which the error wll be show and 400 is the bad request port 
+      //this is the way by which the error wll be show and 400 is the bad request port
     }
 
     const { name, email, password } = req.body;
