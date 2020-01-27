@@ -210,9 +210,34 @@ router.put(
     }
   );
 
-//@route put api/profile/experience
-//@desc add profile experience 
-//@access pRIVATE
+//@route delete api/profile/experience/:exp_id
+//@desc delete profile experience 
+//@access Private
+router.delete('/experience/:exp_id',auth, async (req,res)=>{
+    try {
+        const profile = await Profile.findOne({ user: req.user.id });
+        
+        //Get remove index
+        const removeIndex =profile.experience.map(item =>item.id).indexOf(req.params.exp_id);
+        // 5 experience =>create loop=>make array of all experienceid=>then match that withthe id that is being send
+
+        profile.experience.splice(removeIndex,1);
+
+
+        await profile.save();
+        //if we dont use promise then there is a creation of a callback triangle;
+    
+    req.json(profile);
+    
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+
+        
+    }
+});
+
+
 
 
 
