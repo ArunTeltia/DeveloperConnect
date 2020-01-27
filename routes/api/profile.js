@@ -99,7 +99,7 @@ router.post('/',[auth,[
 });
 //@route get api/profile
 //@desc get all profiles
-//@acess public
+//@access public
 router.get('/', async (req,res)=>{
     try {
         const profiles =await Profile.find().populate('user',['name','avatar']); 
@@ -112,7 +112,7 @@ router.get('/', async (req,res)=>{
 }); 
 //@route get api/profile/user/:user_id
 //@desc get profile by user id
-//@acess public
+//@access public
 router.get('/', async (req,res)=>{
     try {
         const profiles =await Profile.findOne({user:req.params.user_id}).populate('user',['name','avatar']); 
@@ -129,5 +129,25 @@ router.get('/', async (req,res)=>{
 
     }
 }); 
+
+//@route delete api/profile
+//@desc delete profile ,user& POSTS 
+//@access pRIVATE
+router.delete('/',auth, async (req,res)=>{
+    try {
+        //@todo - remove users posts
+        //Remove Profile
+        await Profile.findOneAndDelete({user:req.user.id});
+        //Remove user
+        await User.findOneAndDelete({_id:req.user.id}); 
+        
+        res.json({msg:'User removed'});
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+
+    }
+}); 
+
 
 module.exports =router;
