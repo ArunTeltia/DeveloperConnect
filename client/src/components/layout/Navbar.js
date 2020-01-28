@@ -5,7 +5,7 @@ export const Navbar = () => {
     <nav className="navbar bg-dark">
       <h1>
         <Link to='/'>
-          <i class="fas fa-code"></i> DevConnector
+          <i className="fas fa-code"></i> DevConnector
         </Link>
       </h1>
       <ul>
@@ -13,10 +13,10 @@ export const Navbar = () => {
           <Link to="!#">Developers</Link>
         </li>
         <li>
-          <Link href="/register">Register</Link>
+          <Link to="/register">Register</Link>
         </li>
         <li>
-          <Link href="/login">Login</Link>
+          <Link to="/login">Login</Link>
         </li>
       </ul>
     </nav>
