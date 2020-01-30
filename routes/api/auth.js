@@ -9,9 +9,9 @@ const bcrypt = require("bcryptjs");
 //@route GET api/auth
 //@desc Test route
 //@acess Public/Private
-router.get("/", auth, (req, res) => {
+router.get("/", auth, async (req, res) => {
   try {
-    const user = User.findById(req.user.id).select("-password");
+    const user = await User.findById(req.user.id).select("-password");
     res.json(user);
   } catch (err) {
     console.error(err.message);
@@ -20,15 +20,10 @@ router.get("/", auth, (req, res) => {
 });
 
 //@route Post api/auth
-
-//@desc  Authenticate user and get to ken
-
+//@desc  Authenticate user and get token
 //@acess Public/Private
-router.post(
-  "/",
-  [
+router.post("/",[
     //this is middleware
-
     check("email", "Please include a valid email").isEmail(),
     check("password", "Password is required").exists()
   ],
