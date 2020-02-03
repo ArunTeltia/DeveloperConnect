@@ -1,35 +1,37 @@
 const express = require("express");
-const router = express.Router();
 const request = require("request");
 const config = require("config");
-
+const router = express.Router();
 const auth = require("../../middleware/auth");
-const { check, validationResult } = require("express-validator"); //express-validator/check is deprecated
+const { check, validationResult } = require("express-validator");
 
-const Profile = require("../../model/Profile");
-const user = require("../../model/User");
-//@route GET api/profile/me
-//@desc get current user profile
-//@acess private
+const Profile = require("../../models/Profile");
+const User = require("../../models/User");
+const Post = require("../../models/Post");
+
+// @route    GET api/profile/me
+// @desc     Get current users profile
+// @access   Private
 router.get("/me", auth, async (req, res) => {
   try {
-    const profile = await (
-      await Profile.findOne({ user: req.user.id })
-    ).populated("user", ["name", "avatar"]);
+    const profile = await Profile.findOne({
+      user: req.user.id
+    }).populate("user", ["name", "avatar"]);
+
     if (!profile) {
       return res.status(400).json({ msg: "There is no profile for this user" });
     }
+
     res.json(profile);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
   }
 });
-//now we have to make a route that create a file of me as there is no profile present for now
 
-//@route Post api/profile
-//@desc create or update user profile
-//@acess private
+// @route    POST api/profile
+// @desc     Create or update user profile
+// @access   Private
 router.post(
   "/",
   [
@@ -38,7 +40,7 @@ router.post(
       check("status", "Status is required")
         .not()
         .isEmpty(),
-      check("skill", "Skills is required")
+      check("skills", "Skills is required")
         .not()
         .isEmpty()
     ]
@@ -64,10 +66,9 @@ router.post(
       linkedin
     } = req.body;
 
+    // Build profile object
     const profileFields = {};
-
     profileFields.user = req.user.id;
-
     if (company) profileFields.company = company;
     if (website) profileFields.website = website;
     if (location) profileFields.location = location;
@@ -78,9 +79,6 @@ router.post(
       profileFields.skills = skills.split(",").map(skill => skill.trim());
     }
 
-    // console.log(profileFields.skills);
-
-    // res.send('Hello')
     // Build social object
     profileFields.social = {};
     if (youtube) profileFields.social.youtube = youtube;
@@ -90,19 +88,12 @@ router.post(
     if (instagram) profileFields.social.instagram = instagram;
 
     try {
-      let profile = Profile.findOne({ user: req.user.id });
-
-      if (profile) {
-        profile = await Profile.findOneAndUpdate(
-          { user: req.user.id },
-          { $set: profileFeilds },
-          { new: true }
-        );
-        return res.json(profile);
-      }
-      profile = new Profile(profileFields);
-
-      await profile.save();
+      // Using upsert option (creates new doc if no match is found):
+      let profile = await Profile.findOneAndUpdate(
+        { user: req.user.id },
+        { $set: profileFields },
+        { new: true, upsert: true }
+      );
       res.json(profile);
     } catch (err) {
       console.error(err.message);
@@ -110,9 +101,10 @@ router.post(
     }
   }
 );
-//@route get api/profile
-//@desc get all profiles
-//@access public
+
+// @route    GET api/profile
+// @desc     Get all profiles
+// @access   Public
 router.get("/", async (req, res) => {
   try {
     const profiles = await Profile.find().populate("user", ["name", "avatar"]);
@@ -122,16 +114,18 @@ router.get("/", async (req, res) => {
     res.status(500).send("Server Error");
   }
 });
-//@route get api/profile/user/:user_id
-//@desc get profile by user id
-//@access public
-router.get("/", async (req, res) => {
+
+// @route    GET api/profile/user/:user_id
+// @desc     Get profile by user ID
+// @access   Public
+router.get("/user/:user_id", async (req, res) => {
   try {
-    const profiles = await Profile.findOne({
+    const profile = await Profile.findOne({
       user: req.params.user_id
     }).populate("user", ["name", "avatar"]);
 
     if (!profile) return res.status(400).json({ msg: "Profile not found" });
+
     res.json(profile);
   } catch (err) {
     console.error(err.message);
@@ -142,117 +136,28 @@ router.get("/", async (req, res) => {
   }
 });
 
-//@route delete api/profile
-//@desc delete profile ,user& POSTS
-//@access pRIVATE
+// @route    DELETE api/profile
+// @desc     Delete profile, user & posts
+// @access   Private
 router.delete("/", auth, async (req, res) => {
   try {
-    //@todo - remove users posts
-    //Remove Profile
-    await Profile.findOneAndDelete({ user: req.user.id });
-    //Remove user
-    await User.findOneAndDelete({ _id: req.user.id });
+    // Remove user posts
+    await Post.deleteMany({ user: req.user.id });
+    // Remove profile
+    await Profile.findOneAndRemove({ user: req.user.id });
+    // Remove user
+    await User.findOneAndRemove({ _id: req.user.id });
 
-    res.json({ msg: "User removed" });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server Error");
-  }
-});
-//@route put api/profile/education
-//@desc add profile education
-//@access pRIVATE
-
-router.put(
-  "/education",
-  [
-    auth,
-    [
-      check("school", "School is required")
-        .not()
-        .isEmpty(),
-      check("degree", "Degree is required")
-        .not()
-        .isEmpty(),
-      check("feildofstudy", "Feild of Study is required")
-        .not()
-        .isEmpty(),
-      check("from", "From date is required")
-        .not()
-        .isEmpty()
-    ]
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const {
-      school,
-      degree,
-      feildofstudy,
-      from,
-      to,
-      current,
-      description
-    } = req.body;
-
-    const newEdu = {
-      //same as doing title:title
-      school,
-      degree,
-      feildofstudy,
-      from,
-      to,
-      current,
-      description
-    };
-
-    try {
-      const profile = await Profile.findOne({ user: req.user.id });
-
-      profile.education.unshift(newEdu); //pushing at start of the array ,new exp at start
-
-      await profile.save();
-
-      res.json(profile);
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).send("Server Error");
-    }
-  }
-);
-
-//@route delete api/profile/education/:edu_id
-//@desc delete profile education
-//@access Private
-router.delete("/experience/:edu_id", auth, async (req, res) => {
-  try {
-    const profile = await Profile.findOne({ user: req.user.id });
-
-    //Get remove index
-    const removeIndex = profile.experience
-      .map(item => item.id)
-      .indexOf(req.params.edu_id);
-    // 5 experience =>create loop=>make array of all experienceid=>then match that withthe id that is being send
-
-    profile.experience.splice(removeIndex, 1);
-
-    await profile.save();
-    //if we dont use promise then there is a creation of a callback triangle;
-
-    req.json(profile);
+    res.json({ msg: "User deleted" });
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
   }
 });
 
-//@route put api/profile/experience
-//@desc add profile experience
-//@access pRIVATE
-
+// @route    PUT api/profile/experience
+// @desc     Add profile experience
+// @access   Private
 router.put(
   "/experience",
   [
@@ -286,7 +191,6 @@ router.put(
     } = req.body;
 
     const newExp = {
-      //same as doing title:title
       title,
       company,
       location,
@@ -299,7 +203,7 @@ router.put(
     try {
       const profile = await Profile.findOne({ user: req.user.id });
 
-      profile.experience.unshift(newExp); //pushing at start of the array ,new exp at start
+      profile.experience.unshift(newExp);
 
       await profile.save();
 
@@ -311,35 +215,166 @@ router.put(
   }
 );
 
-//@route delete api/profile/experience/:exp_id
-//@desc delete profile experience
-//@access Private
+// @route    DELETE api/profile/experience/:exp_id
+// @desc     Delete experience from profile
+// @access   Private
+// router.delete('/experience/:exp_id', auth, async (req, res) => {
+//   try {
+//     const profile = await Profile.findOne({ user: req.user.id });
+
+//     // Get remove index
+//     const removeIndex = profile.experience
+//       .map(item => item.id)
+//       .indexOf(req.params.exp_id);
+
+//     profile.experience.splice(removeIndex, 1);
+
+//     await profile.save();
+
+//     res.json(profile);
+//   } catch (err) {
+//     console.error(err.message);
+//     res.status(500).send('Server Error');
+//   }
+// });
+
 router.delete("/experience/:exp_id", auth, async (req, res) => {
   try {
-    const profile = await Profile.findOne({ user: req.user.id });
+    //const foundProfile = await Profile.findOneAndUpdate( { user: req.user.id },
+    //  { $pull: { experience: { _id: req.params.exp_id }}},
+    //  {new: true});
+    const foundProfile = await Profile.findOne({ user: req.user.id });
 
-    //Get remove index
-    const removeIndex = profile.experience
-      .map(item => item.id)
-      .indexOf(req.params.exp_id);
-    // 5 experience =>create loop=>make array of all experienceid=>then match that withthe id that is being send
+    // Filter exprience array using _id (NOTE: _id is a BSON type needs to be converted to string)
+    // This can also be omitted and the next line and findOneAndUpdate to be used instead (above implementation)
+    foundProfile.experience = foundProfile.experience.filter(
+      exp => exp._id.toString() !== req.params.exp_id
+    );
 
-    profile.experience.splice(removeIndex, 1);
-
-    await profile.save();
-    //if we dont use promise then there is a creation of a callback triangle;
-
-    req.json(profile);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server Error");
+    await foundProfile.save();
+    return res.status(200).json(foundProfile);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ msg: "Server error" });
   }
 });
 
-//@route get  api/profile/github/:username
-//@desc get user repos from Github
-//@access Public
+// @route    PUT api/profile/education
+// @desc     Add profile education
+// @access   Private
+router.put(
+  "/education",
+  [
+    auth,
+    [
+      check("school", "School is required")
+        .not()
+        .isEmpty(),
+      check("degree", "Degree is required")
+        .not()
+        .isEmpty(),
+      check("fieldofstudy", "Field of study is required")
+        .not()
+        .isEmpty(),
+      check("from", "From date is required")
+        .not()
+        .isEmpty()
+    ]
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
+    const {
+      school,
+      degree,
+      fieldofstudy,
+      from,
+      to,
+      current,
+      description
+    } = req.body;
+
+    const newEdu = {
+      school,
+      degree,
+      fieldofstudy,
+      from,
+      to,
+      current,
+      description
+    };
+
+    try {
+      const profile = await Profile.findOne({ user: req.user.id });
+
+      profile.education.unshift(newEdu);
+
+      await profile.save();
+
+      res.json(profile);
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send("Server Error");
+    }
+  }
+);
+
+// @route    DELETE api/profile/education/:edu_id
+// @desc     Delete education from profile
+// @access   Private
+//router.delete('/education/:edu_id', auth, async (req, res) => {
+//try {
+//const profile = await Profile.findOne({ user: req.user.id });
+
+// Get remove index
+//const removeIndex = profile.education
+//.map(item => item.id)
+//.indexOf(req.params.edu_id);
+/*
+    profile.education.splice(removeIndex, 1);
+
+    await profile.save();
+
+    res.json(profile);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+*/
+
+router.delete("/education/:edu_id", auth, async (req, res) => {
+  try {
+    const foundProfile = await Profile.findOne({ user: req.user.id });
+    const eduIds = foundProfile.education.map(edu => edu._id.toString());
+    // if i dont add .toString() it returns this weird mongoose coreArray and the ids are somehow objects and it still deletes anyway even if you put /education/5
+    const removeIndex = eduIds.indexOf(req.params.edu_id);
+    if (removeIndex === -1) {
+      return res.status(500).json({ msg: "Server error" });
+    } else {
+      // theses console logs helped me figure it out
+      /*   console.log("eduIds", eduIds);
+      console.log("typeof eduIds", typeof eduIds);
+      console.log("req.params", req.params);
+      console.log("removed", eduIds.indexOf(req.params.edu_id));
+ */ foundProfile.education.splice(
+        removeIndex,
+        1
+      );
+      await foundProfile.save();
+      return res.status(200).json(foundProfile);
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ msg: "Server error" });
+  }
+});
+// @route    GET api/profile/github/:username
+// @desc     Get user repos from Github
+// @access   Public
 router.get("/github/:username", (req, res) => {
   try {
     const options = {
@@ -358,8 +393,9 @@ router.get("/github/:username", (req, res) => {
       if (error) console.error(error);
 
       if (response.statusCode !== 200) {
-        return res.status(404).json({ msg: "No github profile found" });
+        return res.status(404).json({ msg: "No Github profile found" });
       }
+
       res.json(JSON.parse(body));
     });
   } catch (err) {
